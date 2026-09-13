@@ -1,4 +1,4 @@
-# Serdar Drive PWA
+# DriveTheory B PWA
 
 Устанавливаемое офлайн-веб-приложение для iPhone. Подходит для бесплатного GitHub Pages.
 
