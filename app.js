@@ -39,7 +39,7 @@
 
   function render() {
     if (activeExam) return renderExam();
-    ({ home: renderHome, learn: renderLearn, formulas: renderFormulas, exams: renderExams, mistakes: renderMistakes }[route] || renderHome)();
+    ({ home: renderHome, plan: renderCoachPlan, learn: renderLearn, formulas: renderFormulas, exams: renderExams, mistakes: renderMistakes }[route] || renderHome)();
   }
 
   function renderHome() {
@@ -54,6 +54,10 @@
       <section class="panel"><span class="label">8 СТРОК ПЕРЕД ЭКЗАМЕНОМ</span><ol class="eight"><li>Помеха справа → пропускаю справа.</li><li>Налево → пропускаю встречных прямо/направо.</li><li>Не вижу дорогу → не обгоняю.</li><li>Скрыт за грузовиком ≠ исчез.</li><li>Груз: 0,5 вперёд / 1,5 назад / 3 до 100 км.</li><li>Реакция ×3 / торможение квадрат / экстренное ÷2.</li><li>Права + Teil I; Teil II дома.</li><li>Перед «Далее»: проверить все варианты.</li></ol></section>
       ${latest ? `<section class="panel"><span class="label">ПОСЛЕДНИЙ РЕЗУЛЬТАТ</span><h3 class="${resultPassed(latest)?"green":"danger"}">${resultPassed(latest)?"СДАН":"НЕ СДАН"} · ${latest.correct}/30</h3><div class="muted">Партия ${latest.exam} · ${latest.points} штрафных баллов</div></section>` : ""}`;
     document.querySelector("#start").onclick = () => startExam(1);
+    if (window.DRIVE_COACH) {
+      app.insertAdjacentHTML("afterbegin", window.DRIVE_COACH.todayPanel());
+      window.DRIVE_COACH.wireHome(go);
+    }
   }
 
   function renderLearn() {
@@ -109,6 +113,12 @@
     app.innerHTML=`<section class="panel"><span class="label">ИЗ ТВОИХ ПОСЛЕДНИХ ТЕСТОВ</span><h2>Главный паттерн</h2><p class="muted">Ты часто знаешь правило, но пропускаешь второй правильный вариант: HU — техосмотр, документы, медленная машина, STOP и скрытые участники.</p><div class="memory">✓ Перед «Далее» проверить все 3 ответа</div></section>${mistakes.length?mistakes.map(q=>`<section class="panel"><div class="card-head">${badge(q.category)}<small class="muted">Партия ${q.exam} · №${q.number}</small></div><h3>${esc(q.prompt)}</h3><button class="reveal" data-reveal="${q.id}">${reveal.has(q.id)?"Скрыть":"Показать ответ"}</button>${reveal.has(q.id)?`<p class="green"><strong>✅ ${q.correct.map(i=>esc(q.answers[i])).join(" · ")}</strong></p><p class="muted">${esc(q.explanation)}</p><div class="memory">🧠 ${esc(q.memory)}</div>`:""}</section>`).join(""):`<section class="panel" style="text-align:center;padding:45px 20px"><div class="result-icon green">✓</div><h2>Ошибок пока нет</h2><p class="muted">Пройди экзамен — неверные ответы появятся здесь.</p></section>`}${(state.results.length||state.learned.length)?`<button class="secondary" id="reset" style="width:100%;color:var(--red)">Сбросить весь прогресс</button>`:""}`;
     app.querySelectorAll("[data-reveal]").forEach(b=>b.onclick=()=>{reveal.has(b.dataset.reveal)?reveal.delete(b.dataset.reveal):reveal.add(b.dataset.reveal);renderMistakes();});
     const reset=app.querySelector("#reset");if(reset)reset.onclick=()=>{if(confirm("Удалить результаты и изученные карточки?")){state.learned=[];state.mistakes=[];state.results=[];save();renderMistakes();}};
+    if (window.DRIVE_COACH) window.DRIVE_COACH.mountMistakes(app);
+  }
+
+  function renderCoachPlan() {
+    if (window.DRIVE_COACH) window.DRIVE_COACH.renderPlan(app);
+    else app.innerHTML = `<section class="panel"><h2>План временно недоступен</h2></section>`;
   }
 
   if ("serviceWorker" in navigator) window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js"));
