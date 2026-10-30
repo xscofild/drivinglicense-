@@ -164,6 +164,7 @@
     const day=selectedDay,date=planDate(day),record=store.records[date]||{};
     const isExam=day>=20;
     const titles=[isExam?"Пробный экзамен из всех тем":school[day],paid[day]];
+    const paidUnique=paid[day].startsWith("Assistance systems")?14:paid[day].startsWith("Rules of thumb")?15:30;
     const schoolDone=record.school||{},paidDone=record.paid||{};
     const stats=topTopics().slice(0,3).map(([key,n])=>'<span class="coach-pill">'+clean(topics[key])+' · '+n+'</span>').join("");
     app.innerHTML='<section class="panel coach-heading"><span class="label">ПЕРСОНАЛЬНАЯ ПОДГОТОВКА</span><h2>30 дней · 60 вопросов</h2><p class="muted">Одна тема = полный тест из 30 вопросов. С 19 ноября — пробные экзамены.</p><div class="coach-progress"><i style="width:'+(countDone()/30*100)+'%"></i></div><small class="muted">'+countDone()+' из 30 дней выполнено</small></section>'+
@@ -171,7 +172,7 @@
       ['school','paid'].map((kind,index)=>{
         const r=kind==="school"?schoolDone:paidDone;
         return '<section class="panel coach-record"><span class="label">'+(kind==="school"?"🔵 ШКОЛЬНАЯ ПРОГРАММА":"⚫ ПЛАТНАЯ ПРОГРАММА")+'</span>'+
-        '<h3>'+clean(titles[index])+'</h3><p class="muted">Один тест — 30 вопросов</p>'+
+        '<h3>'+clean(titles[index])+'</h3><p class="muted">'+(kind==='paid'&&paidUnique<30?('Здесь только '+paidUnique+' разных вопросов — повтори сложные, чтобы получить 30 ответов.'):'Один тест — 30 вопросов')+'</p>'+
         '<label class="coach-check"><input type="checkbox" id="coach-'+kind+'-done" '+(r.done?"checked":"")+'> Выполнил тест</label>'+
         '<div class="coach-inputs"><label>Верных из 30<input type="number" id="coach-'+kind+'-correct" min="0" max="30" inputmode="numeric" placeholder="например, 27" value="'+clean(r.correct??"")+'"></label>'+
         '<label>Штрафные баллы<input type="number" id="coach-'+kind+'-points" min="0" max="150" inputmode="numeric" placeholder="например, 11" value="'+clean(r.points??"")+'"></label></div></section>';
@@ -470,7 +471,7 @@
         if(blob)images.push({id:m.id,data:await readAsDataURL(blob)});
       }catch{}
     }
-    const data=JSON.stringify({format:"DriveTheoryB-coach-backup-v1",exported:todayISO(),state:store,images});
+    const data=JSON.stringify({format:"DriveTheoryB-coach-backup-v1",exported:todayISO(),state:store,legacyState:localStorage.getItem("driveTheoryState"),images});
     const url=URL.createObjectURL(new Blob([data],{type:"application/json"}));
     const a=document.createElement("a");a.href=url;a.download="DriveTheoryB-backup-"+todayISO()+".json";a.click();
     setTimeout(()=>URL.revokeObjectURL(url),10000);
@@ -486,7 +487,7 @@
         const response=await fetch(x.data);
         await imagePut(x.id,await response.blob());
       }
-      store=backup.state;persist();alert("Данные восстановлены.");renderPlan(app);
+      store=backup.state;persist();if(typeof backup.legacyState==="string")localStorage.setItem("driveTheoryState",backup.legacyState);alert("Данные восстановлены.");renderPlan(app);
     }catch(e){alert("Не удалось восстановить: "+e.message)}
   }
   window.DRIVE_COACH={
