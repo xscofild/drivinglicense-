@@ -91,8 +91,8 @@ function sendPlan_() {
     '<b>'+d.day+'/21 • '+esc_(d.date)+'</b>\n🔵 '+esc_(d.school)+'\n⚫ '+esc_(d.special)).join('\n\n'),menu_());
 }
 function results_() {const r=sheet_('Results').getDataRange().getValues();return r.slice(1).filter(x=>x[1]);}
-function mistakes_() {const r=sheet_('Mistakes').getDataRange().getValues();return r.slice(1).map((v,i)=>({row:i+2,id:String(v[0]),created:String(v[1]),topic:String(v[2]),question:String(v[3]),answer:String(v[4]),photo:String(v[5]),url:String(v[6]),stage:Number(v[7])||0,due:String(v[8]),status:String(v[9]),last:String(v[10]),wrong:Number(v[11])||0})).filter(x=>x.id);}
-function due_(){return mistakes_().filter(x=>x.status!=='closed'&&x.due<=today_());}
+function mistakes_() {const r=sheet_('Mistakes').getDataRange().getValues();return r.slice(1).map((v,i)=>({row:i+2,id:String(v[0]),created:String(v[1]),topic:String(v[2]),question:String(v[3]),answer:String(v[4]),photo:String(v[5]),url:String(v[6]),stage:Number(v[7])||0,due:String(v[8]),status:String(v[9]),last:String(v[10]),wrong:Number(v[11])||0,ocrStatus:String(v[12]||''),code:String(v[13]||''),suggested:String(v[14]||''),replyId:Number(v[15])||0,driveId:String(v[16]||''),ordinal:Number(v[17])||0})).filter(x=>x.id);}
+function due_(){return mistakes_().filter(x=>x.status==='active'&&x.due<=today_());}
 function sendProgress_() {
   const plan=currentPlan_(),allMistakes=mistakes_(),attempts=results_();
   const both=plan.filter(d=>d.schoolDone&&d.specialDone).length;
@@ -140,9 +140,33 @@ function saveResult_(which,date,correct,points) {
     (points!==''?' • '+points+' штрафных баллов':'')+'\n📅 '+date+
     '\n\nЕсли были ошибки — отправь их скриншоты.');
 }
-function askPhoto_(){send_('📸 Просто отправь сюда скриншот неправильного ответа из любого из двух приложений.\n\nМожно добавить подпись с пояснением. После загрузки выбери тему.\n🔒 Фото сохранится в закрытой папке твоего Google Drive.');}
+function askPhoto_(){send_('📸 Отправь сразу несколько скриншотов (можно альбомом).\n\nКаждой ошибке бот присвоит номер и пришлёт её фото с отдельными кнопками. Попробует прочитать код вопроса, например 1.2.34-110, и предложит тему. Тебе останется подтвердить или выбрать другую.\n🔒 Скриншоты остаются в закрытой папке Google Drive.');}
+/* Each Telegram photo becomes its own numbered card, even in a media group. */
+function photoCaption_(m, extra) {
+  return '📸 <b>Ошибка №'+m.ordinal+'</b> • '+esc_(m.created)+
+    (m.code?'\\n🔢 Вопрос: <code>'+esc_(m.code)+'</code>':'')+
+    (extra?'\\n'+extra:'');
+}
+function chooseButton_(id) { return [[btn_('📚 Выбрать тему','choose|'+id)]]; }
+function photoCard_(m, caption, buttons) {
+  const msg = {chat_id:p_('CHAT_ID'),message_id:m.replyId,caption:caption.slice(0,1000),
+    parse_mode:'HTML',reply_markup:{inline_keyboard:buttons||chooseButton_(m.id)}};
+  if (m.replyId) {
+    try { api_('editMessageCaption',msg); return; }
+    catch(error) { console.warn('editMessageCaption: '+error.message); }
+  }
+  send_(caption,buttons||chooseButton_(m.id));
+}
+function scheduleOcr_() {
+  if(ScriptApp.getProjectTriggers().some(t=>t.getHandlerFunction()==='processPendingOcr'))return;
+  ScriptApp.newTrigger('processPendingOcr').timeBased().after(30000).create();
+}
 function savePhoto_(msg) {
-  const photos=msg.photo||[]; const photo=photos[photos.length-1]; if(!photo) return;
+  const photos=msg.photo||[],photo=photos[photos.length-1];if(!photo)return;
+  const unique=photo.file_unique_id||'';
+  // Telegram can retry a delivery; never save the same Telegram message twice.
+  const dup=mistakes_().some(m=>m.question.indexOf('[tg:'+msg.message_id+']')>=0);
+  if(dup)return;
   const details=api_('getFile',{file_id:photo.file_id});
   const token=p_('BOT_TOKEN');
   const blob=UrlFetchApp.fetch('https://api.telegram.org/file/bot'+token+'/'+details.file_path).getBlob();
@@ -151,18 +175,40 @@ function savePhoto_(msg) {
   const filename=today_()+'_'+Utilities.getUuid()+'.jpg';
   const file=DriveApp.getFolderById(folderId).createFile(blob.setName(filename));
   const id='e'+new Date().getTime().toString(36)+Math.floor(Math.random()*10000).toString(36);
-  const caption=(msg.caption||'').slice(0,500);
-  sheet_('Mistakes').appendRow([id,today_(),'other',caption,'',photo.file_id,file.getUrl(),0,datePlus_(today_(),3),'active','','0']);
-  const buttons=Object.entries(CFG.TOPICS).filter(([key])=>key!=='other').map(([key,name])=>[btn_(name,'topic|'+id+'|'+key)]);
+  const caption=(msg.caption||'').slice(0,400);
+  const existing=mistakes_(),ordinal=existing.reduce((n,m)=>Math.max(n,m.ordinal||m.row-1),0)+1;
+  const note='[tg:'+msg.message_id+']'+(caption?' '+caption:'');
+  sheet_('Mistakes').appendRow([id,today_(),'other',note,'',photo.file_id,file.getUrl(),0,datePlus_(today_(),3),'topic_pending','',0,'pending','','','',file.getId(),ordinal]);
+  const record=mistakes_().find(m=>m.id===id);
+  const sent=api_('sendPhoto',{chat_id:p_('CHAT_ID'),photo:photo.file_id,
+    caption:photoCaption_(record,'🔎 Проверяю код вопроса и тему…\\nПри необходимости нажми «Выбрать тему».'),
+    parse_mode:'HTML',reply_markup:{inline_keyboard:chooseButton_(id)}});
+  sheet_('Mistakes').getRange(record.row,16).setValue(sent.message_id);
+  try {scheduleOcr_();} catch(err){console.warn('Could not schedule OCR: '+err.message);
+    send_('⚠️ Автораспознавание сейчас недоступно. Выбери тему кнопкой под ошибкой №'+ordinal+'.');}
+}
+function showTopics_(id) {
+  const m=mistakes_().find(x=>x.id===id);
+  if(!m)return send_('Ошибка не найдена.',menu_());
+  const buttons=Object.entries(CFG.TOPICS).filter(([key])=>key!=='other')
+    .map(([key,name])=>[btn_(name,'topic|'+id+'|'+key)]);
   buttons.push([btn_('❓ Не знаю тему','topic|'+id+'|other')]);
-  send_('📸 <b>Ошибка сохранена</b>!\n'+(caption?'Подпись: '+esc_(caption)+'\n':'')+'Выбери тему:',buttons);
+  photoCard_(m,photoCaption_(m,'Выбери тему именно для этого скриншота:'),buttons);
 }
 function setTopic_(id,topic){
   if(!CFG.TOPICS[topic])return;
   const m=mistakes_().find(x=>x.id===id);
   if(!m){send_('Ошибка не найдена.');return;}
-  sheet_('Mistakes').getRange(m.row,3).setValue(topic);
-  send_('✅ Тема сохранена: <b>'+esc_(CFG.TOPICS[topic])+'</b>\n🧠 Бот напомнит об этой ошибке через 3 дня.',menu_());
+  const sh=sheet_('Mistakes');
+  sh.getRange(m.row,3).setValue(topic);
+  sh.getRange(m.row,10).setValue('active');
+  photoCard_(m,photoCaption_(m,'✅ <b>Тема подтверждена:</b> '+esc_(CFG.TOPICS[topic])+
+    '\\n🧠 Повторение через 3 дня.'),[[btn_('✏️ Исправить тему','choose|'+id)]]);
+}
+function confirmSuggested_(id){
+  const m=mistakes_().find(x=>x.id===id);
+  if(!m||!CFG.TOPICS[m.suggested]){send_('Предложенная тема недоступна. Выбери вручную.');return;}
+  setTopic_(id,m.suggested);
 }
 function sendErrors_() {
   const all=mistakes_();
@@ -237,6 +283,8 @@ function handleCallback_(cb) {
     case 'result':if(x.length===3&&['school','special'].indexOf(x[1])>=0)askResult_(x[1],x[2]);break;
     case 'add_error':askPhoto_();break;
     case 'topic':if(x.length===3)setTopic_(x[1],x[2]);break;
+    case 'choose':if(x.length===2)showTopics_(x[1]);break;
+    case 'confirm':if(x.length===2)confirmSuggested_(x[1]);break;
     default:help_();
   }
 }
@@ -267,6 +315,88 @@ function doPost(e) {
 }
 function doGet() {return HtmlService.createHtmlOutput('DriveTheory B Coach online');}
 
+/* OCR is deliberately outside doPost: webhook must answer quickly. Google Drive import
+   uses its native OCR (no paid Vision API). Results are only suggestions. */
+function recognizeText_(fileId) {
+  const blob=DriveApp.getFileById(fileId).getBlob();
+  const boundary='----DriveTheoryOCR'+Utilities.getUuid().replace(/-/g,'');
+  const head='--'+boundary+'\\r\\nContent-Type: application/json; charset=UTF-8\\r\\n\\r\\n'+
+    JSON.stringify({name:'tmp-ocr-'+Utilities.getUuid(),mimeType:'application/vnd.google-apps.document'})+
+    '\\r\\n--'+boundary+'\\r\\nContent-Type: '+(blob.getContentType()||'image/jpeg')+'\\r\\n\\r\\n';
+  const bytes=Utilities.newBlob(head).getBytes().concat(blob.getBytes(),Utilities.newBlob('\\r\\n--'+boundary+'--\\r\\n').getBytes());
+  const auth={Authorization:'Bearer '+ScriptApp.getOAuthToken()};
+  const upload=UrlFetchApp.fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&ocrLanguage=ru&fields=id', {
+    method:'post',contentType:'multipart/related; boundary='+boundary,payload:bytes,
+    headers:auth,muteHttpExceptions:true
+  });
+  if(upload.getResponseCode()>=300)throw new Error('OCR upload HTTP '+upload.getResponseCode()+' '+upload.getContentText().slice(0,180));
+  const id=JSON.parse(upload.getContentText()).id;
+  if(!id)throw new Error('OCR Google Doc not created');
+  try{
+    const exp=UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(id)+
+      '/export?mimeType=text%2Fplain',{headers:auth,muteHttpExceptions:true});
+    if(exp.getResponseCode()>=300)throw new Error('OCR export HTTP '+exp.getResponseCode());
+    return exp.getContentText().slice(0,5000);
+  } finally {
+    try {DriveApp.getFileById(id).setTrashed(true);} catch(err){console.warn('OCR temporary document cleanup: '+err.message);}
+  }
+}
+function detectQuestion_(text) {
+  // Examples: 1.2.34-110 -> 1.2 "Поведение при дорожном движении";
+  // 2.5.01-119 -> 2.5 "Защита окружающей среды".
+  const cleaned=String(text||'').replace(/[，,·•]/g,'.').replace(/[–—−]/g,'-');
+  const re=/([12])\\s*[.]\\s*([1-8])\\s*[.]\\s*(\\d{1,2})\\s*[-.]\\s*(\\d{3})/g;
+  const map={'1':'danger','2':'behavior','3':'priority','4':'signs','5':'environment',
+    '6':'regulations','7':'technology','8':'qualification'};
+  let match;
+  while((match=re.exec(cleaned))!==null){
+    const first=Number(match[1]),chapter=Number(match[2]);
+    if(first!==1&&first!==2)continue;
+    const code=match[1]+'.'+chapter+'.'+String(Number(match[3])).padStart(2,'0')+'-'+match[4];
+    return {code:code,topic:map[chapter]};
+  }
+  return null;
+}
+function processPendingOcr(){
+  // One-shot task; do not run OCR inside incoming Telegram webhook requests.
+  ScriptApp.getProjectTriggers().forEach(t=>{
+    if(t.getHandlerFunction()==='processPendingOcr')ScriptApp.deleteTrigger(t);
+  });
+  const queue=mistakes_().filter(m=>m.ocrStatus==='pending').slice(0,3);
+  for(const m of queue){
+    const sh=sheet_('Mistakes');
+    sh.getRange(m.row,13).setValue('processing');
+    try{
+      const text=recognizeText_(m.driveId);
+      const guess=detectQuestion_(text);
+      sh.getRange(m.row,13).setValue(guess?'suggested':'unrecognized');
+      if(guess){
+        sh.getRange(m.row,14).setValue(guess.code);
+        sh.getRange(m.row,15).setValue(guess.topic);
+      }
+      // Never override a topic already chosen by the user.
+      const fresh=mistakes_().find(x=>x.id===m.id);
+      if(fresh.status==='active')continue;
+      if(guess){
+        photoCard_(fresh,photoCaption_(fresh,'🔎 <b>Предлагаю тему:</b> '+
+          esc_(CFG.TOPICS[guess.topic])+
+          '\\nЭто предположение по номеру вопроса. Подтверди или исправь:'),
+          [[btn_('✅ Подтвердить','confirm|'+m.id)],[btn_('📚 Другая тема','choose|'+m.id)]]);
+      } else {
+        photoCard_(fresh,photoCaption_(fresh,'⚠️ Номер вопроса не найден. Выбери тему вручную.'),
+          chooseButton_(m.id));
+      }
+    }catch(err){
+      console.warn('OCR failed for '+m.id+': '+err.message);
+      sh.getRange(m.row,13).setValue('failed');
+      const fresh=mistakes_().find(x=>x.id===m.id);
+      if(fresh.status!=='active')photoCard_(fresh,
+        photoCaption_(fresh,'⚠️ Не удалось распознать код. Выбери тему вручную.'),
+        chooseButton_(m.id));
+    }
+  }
+  if(mistakes_().some(m=>m.ocrStatus==='pending'))scheduleOcr_();
+}
 /** Run once after adding BOT_TOKEN and CHAT_ID under Project Settings → Script properties. */
 function setupBackend(){
   if(!p_('BOT_TOKEN')||!p_('CHAT_ID'))throw new Error('Add BOT_TOKEN and CHAT_ID in Script Properties first');
