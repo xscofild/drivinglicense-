@@ -12,14 +12,15 @@ const CFG = Object.freeze({
   BOT_NAME: 'DriveTheory B Coach',
   REVIEW_STEPS: [3, 4, 7, 14, 30],
   TOPICS: {
-    danger: 'Опасные ситуации',
-    environment: 'Экология',
+    danger: 'Обучение по опасностям',
+    environment: 'Защита окружающей среды',
     signs: 'Дорожные знаки',
-    priority: 'Приоритет',
+    behavior: 'Поведение при дорожном движении',
+    priority: 'Право преимущественного проезда, приоритет',
     numbers: 'Формулы и числа',
-    technology: 'Техника и системы помощи',
+    technology: 'Техника',
     driver: 'Водитель и документы',
-    other: 'Другое'
+    other: 'Другое / не уверен в теме'
   }
 });
 
