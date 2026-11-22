@@ -91,7 +91,7 @@ function sendPlan_() {
     '<b>'+d.day+'/21 • '+esc_(d.date)+'</b>\n🔵 '+esc_(d.school)+'\n⚫ '+esc_(d.special)).join('\n\n'),menu_());
 }
 function results_() {const r=sheet_('Results').getDataRange().getValues();return r.slice(1).filter(x=>x[1]);}
-function mistakes_() {const r=sheet_('Mistakes').getDataRange().getValues();return r.slice(1).map((v,i)=>({row:i+2,id:String(v[0]),created:String(v[1]),topic:String(v[2]),question:String(v[3]),answer:String(v[4]),photo:String(v[5]),url:String(v[6]),stage:Number(v[7])||0,due:String(v[8]),status:String(v[9]),last:String(v[10]),wrong:Number(v[11])||0,ocrStatus:String(v[12]||''),code:String(v[13]||''),suggested:String(v[14]||''),replyId:Number(v[15])||0,driveId:String(v[16]||''),ordinal:Number(v[17])||0})).filter(x=>x.id);}
+function mistakes_() {const r=sheet_('Mistakes').getDataRange().getValues();return r.slice(1).map((v,i)=>({row:i+2,id:String(v[0]),created:String(v[1]),topic:String(v[2]),question:String(v[3]),answer:String(v[4]),photo:String(v[5]),url:String(v[6]),stage:Number(v[7])||0,due:String(v[8]),status:String(v[9]),last:String(v[10]),wrong:Number(v[11])||0,telegramMessageId:Number(v[18])||0,ocrStatus:String(v[12]||''),code:String(v[13]||''),suggested:String(v[14]||''),replyId:Number(v[15])||0,driveId:String(v[16]||''),ordinal:Number(v[17])||0})).filter(x=>x.id);}
 function due_(){return mistakes_().filter(x=>x.status==='active'&&x.due<=today_());}
 function sendProgress_() {
   const plan=currentPlan_(),allMistakes=mistakes_(),attempts=results_();
@@ -163,9 +163,8 @@ function scheduleOcr_() {
 }
 function savePhoto_(msg) {
   const photos=msg.photo||[],photo=photos[photos.length-1];if(!photo)return;
-  const unique=photo.file_unique_id||'';
   // Telegram can retry a delivery; never save the same Telegram message twice.
-  const dup=mistakes_().some(m=>m.question.indexOf('[tg:'+msg.message_id+']')>=0);
+  const dup=mistakes_().some(m=>m.telegramMessageId===Number(msg.message_id));
   if(dup)return;
   const details=api_('getFile',{file_id:photo.file_id});
   const token=p_('BOT_TOKEN');
@@ -177,8 +176,7 @@ function savePhoto_(msg) {
   const id='e'+new Date().getTime().toString(36)+Math.floor(Math.random()*10000).toString(36);
   const caption=(msg.caption||'').slice(0,400);
   const existing=mistakes_(),ordinal=existing.reduce((n,m)=>Math.max(n,m.ordinal||m.row-1),0)+1;
-  const note='[tg:'+msg.message_id+']'+(caption?' '+caption:'');
-  sheet_('Mistakes').appendRow([id,today_(),'other',note,'',photo.file_id,file.getUrl(),0,datePlus_(today_(),3),'topic_pending','',0,'pending','','','',file.getId(),ordinal]);
+  sheet_('Mistakes').appendRow([id,today_(),'other',caption,'',photo.file_id,file.getUrl(),0,datePlus_(today_(),3),'topic_pending','',0,'pending','','','',file.getId(),ordinal,Number(msg.message_id)]);
   const record=mistakes_().find(m=>m.id===id);
   const sent=api_('sendPhoto',{chat_id:p_('CHAT_ID'),photo:photo.file_id,
     caption:photoCaption_(record,'🔎 Проверяю код вопроса и тему…\nПри необходимости нажми «Выбрать тему».'),
