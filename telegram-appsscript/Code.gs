@@ -225,6 +225,7 @@ function sendReview_(){
     (m.code?'🔢 Вопрос: <code>'+esc_(m.code)+'</code>\n':'')+
     '📚 Тема: '+esc_(CFG.TOPICS[m.topic]||CFG.TOPICS.other)+'\n'+
     (m.question?'\n'+esc_(m.question.slice(0,690))+'\n':'')+
+    (m.url&&!m.photo?'\n📷 <a href="'+esc_(m.url)+'">Открыть фото в архиве (найти по коду)</a>\n':'')+
     '\nСначала вспомни ответ самостоятельно. Затем открой проверку.\nОсталось сегодня: '+items.length;
   const buttons=[[btn_('👀 Показать ответ','reveal|'+m.id)]];
   if(m.photo){
@@ -260,7 +261,7 @@ function help_(){send_('🚗 <b>Команды DriveTheory B Coach</b>\n'+
   '📸 Чтобы сохранить ошибку, отправь скриншот, затем выбери тему.\n'+
   '✅ Для результата нажми кнопку под ежедневным заданием и введи: <code>27 5</code>.\n'+
   '📚 Ошибки, разобранные в ChatGPT, уже в Google Sheets. В /review сначала отвечай сам, затем жми «Показать ответ».\n'+
-  '⚠️ Скриншоты из ChatGPT пока не прикреплены к Telegram; для них показывается текст. Распознавание фото в Telegram только предлагает тему по коду.',menu_());}
+  '📷 Снимки из ChatGPT сохранены в связанном архиве Google Docs, доступном из /review. В Telegram для них показываются вопрос и ответ текстом; распознавание новых Telegram-фото только предлагает тему по коду.',menu_());}
 function handleText_(msg) {
   const txt=(msg.text||'').trim();
   if(txt==='/start'||txt==='/help'){clearPending_();help_();return;}
