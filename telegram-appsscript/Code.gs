@@ -144,8 +144,8 @@ function askPhoto_(){send_('📸 Отправь сразу несколько с
 /* Each Telegram photo becomes its own numbered card, even in a media group. */
 function photoCaption_(m, extra) {
   return '📸 <b>Ошибка №'+m.ordinal+'</b> • '+esc_(m.created)+
-    (m.code?'\\n🔢 Вопрос: <code>'+esc_(m.code)+'</code>':'')+
-    (extra?'\\n'+extra:'');
+    (m.code?'\n🔢 Вопрос: <code>'+esc_(m.code)+'</code>':'')+
+    (extra?'\n'+extra:'');
 }
 function chooseButton_(id) { return [[btn_('📚 Выбрать тему','choose|'+id)]]; }
 function photoCard_(m, caption, buttons) {
@@ -181,7 +181,7 @@ function savePhoto_(msg) {
   sheet_('Mistakes').appendRow([id,today_(),'other',note,'',photo.file_id,file.getUrl(),0,datePlus_(today_(),3),'topic_pending','',0,'pending','','','',file.getId(),ordinal]);
   const record=mistakes_().find(m=>m.id===id);
   const sent=api_('sendPhoto',{chat_id:p_('CHAT_ID'),photo:photo.file_id,
-    caption:photoCaption_(record,'🔎 Проверяю код вопроса и тему…\\nПри необходимости нажми «Выбрать тему».'),
+    caption:photoCaption_(record,'🔎 Проверяю код вопроса и тему…\nПри необходимости нажми «Выбрать тему».'),
     parse_mode:'HTML',reply_markup:{inline_keyboard:chooseButton_(id)}});
   sheet_('Mistakes').getRange(record.row,16).setValue(sent.message_id);
   try {scheduleOcr_();} catch(err){console.warn('Could not schedule OCR: '+err.message);
@@ -203,7 +203,7 @@ function setTopic_(id,topic){
   sh.getRange(m.row,3).setValue(topic);
   sh.getRange(m.row,10).setValue('active');
   photoCard_(m,photoCaption_(m,'✅ <b>Тема подтверждена:</b> '+esc_(CFG.TOPICS[topic])+
-    '\\n🧠 Повторение через 3 дня.'),[[btn_('✏️ Исправить тему','choose|'+id)]]);
+    '\n🧠 Повторение через 3 дня.'),[[btn_('✏️ Исправить тему','choose|'+id)]]);
 }
 function confirmSuggested_(id){
   const m=mistakes_().find(x=>x.id===id);
@@ -320,10 +320,10 @@ function doGet() {return HtmlService.createHtmlOutput('DriveTheory B Coach onlin
 function recognizeText_(fileId) {
   const blob=DriveApp.getFileById(fileId).getBlob();
   const boundary='----DriveTheoryOCR'+Utilities.getUuid().replace(/-/g,'');
-  const head='--'+boundary+'\\r\\nContent-Type: application/json; charset=UTF-8\\r\\n\\r\\n'+
+  const head='--'+boundary+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+
     JSON.stringify({name:'tmp-ocr-'+Utilities.getUuid(),mimeType:'application/vnd.google-apps.document'})+
-    '\\r\\n--'+boundary+'\\r\\nContent-Type: '+(blob.getContentType()||'image/jpeg')+'\\r\\n\\r\\n';
-  const bytes=Utilities.newBlob(head).getBytes().concat(blob.getBytes(),Utilities.newBlob('\\r\\n--'+boundary+'--\\r\\n').getBytes());
+    '\r\n--'+boundary+'\r\nContent-Type: '+(blob.getContentType()||'image/jpeg')+'\r\n\r\n';
+  const bytes=Utilities.newBlob(head).getBytes().concat(blob.getBytes(),Utilities.newBlob('\r\n--'+boundary+'--\r\n').getBytes());
   const auth={Authorization:'Bearer '+ScriptApp.getOAuthToken()};
   const upload=UrlFetchApp.fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&ocrLanguage=ru&fields=id', {
     method:'post',contentType:'multipart/related; boundary='+boundary,payload:bytes,
@@ -345,7 +345,7 @@ function detectQuestion_(text) {
   // Examples: 1.2.34-110 -> 1.2 "Поведение при дорожном движении";
   // 2.5.01-119 -> 2.5 "Защита окружающей среды".
   const cleaned=String(text||'').replace(/[，,·•]/g,'.').replace(/[–—−]/g,'-');
-  const re=/([12])\\s*[.]\\s*([1-8])\\s*[.]\\s*(\\d{1,2})\\s*[-.]\\s*(\\d{3})/g;
+  const re=/([12])\s*[.]\s*([1-8])\s*[.]\s*(\d{1,2})\s*[-.]\s*(\d{3})/g;
   const map={'1':'danger','2':'behavior','3':'priority','4':'signs','5':'environment',
     '6':'regulations','7':'technology','8':'qualification'};
   let match;
@@ -380,7 +380,7 @@ function processPendingOcr(){
       if(guess){
         photoCard_(fresh,photoCaption_(fresh,'🔎 <b>Предлагаю тему:</b> '+
           esc_(CFG.TOPICS[guess.topic])+
-          '\\nЭто предположение по номеру вопроса. Подтверди или исправь:'),
+          '\nЭто предположение по номеру вопроса. Подтверди или исправь:'),
           [[btn_('✅ Подтвердить','confirm|'+m.id)],[btn_('📚 Другая тема','choose|'+m.id)]]);
       } else {
         photoCard_(fresh,photoCaption_(fresh,'⚠️ Номер вопроса не найден. Выбери тему вручную.'),
