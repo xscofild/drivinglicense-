@@ -13,14 +13,14 @@ const CFG = Object.freeze({
   REVIEW_STEPS: [3, 4, 7, 14, 30],
   TOPICS: {
     danger: 'Обучение по опасностям',
-    environment: 'Защита окружающей среды',
-    signs: 'Дорожные знаки',
     behavior: 'Поведение при дорожном движении',
     priority: 'Право преимущественного проезда, приоритет',
-    numbers: 'Формулы и числа',
+    signs: 'Дорожные знаки',
+    environment: 'Защита окружающей среды',
+    regulations: 'Предписания по эксплуатации транспортных средств',
     technology: 'Техника',
-    driver: 'Водитель и документы',
-    other: 'Другое / не уверен в теме'
+    qualification: 'Профессиональная пригодность и квалификация водителей',
+    other: 'Тема не определена'
   }
 });
 
@@ -153,7 +153,8 @@ function savePhoto_(msg) {
   const id='e'+new Date().getTime().toString(36)+Math.floor(Math.random()*10000).toString(36);
   const caption=(msg.caption||'').slice(0,500);
   sheet_('Mistakes').appendRow([id,today_(),'other',caption,'',photo.file_id,file.getUrl(),0,datePlus_(today_(),3),'active','','0']);
-  const buttons=Object.entries(CFG.TOPICS).map(([key,name])=>[btn_(name,'topic|'+id+'|'+key)]);
+  const buttons=Object.entries(CFG.TOPICS).filter(([key])=>key!=='other').map(([key,name])=>[btn_(name,'topic|'+id+'|'+key)]);
+  buttons.push([btn_('❓ Не знаю тему','topic|'+id+'|other')]);
   send_('📸 <b>Ошибка сохранена</b>!\n'+(caption?'Подпись: '+esc_(caption)+'\n':'')+'Выбери тему:',buttons);
 }
 function setTopic_(id,topic){
