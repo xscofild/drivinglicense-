@@ -240,13 +240,13 @@ function handleCallback_(cb) {
 }
 function doPost(e) {
   const lock=LockService.getScriptLock();
-  if(!lock.tryLock(15000))return ContentService.createTextOutput('busy');
+  if(!lock.tryLock(15000))return HtmlService.createHtmlOutput('busy');
   try{
     if(!p_('WEBHOOK_KEY')||!e||!e.parameter||e.parameter.key!==p_('WEBHOOK_KEY'))
-      return ContentService.createTextOutput('forbidden');
+      return HtmlService.createHtmlOutput('forbidden');
     const u=JSON.parse(e.postData.contents);
     const last=Number(p_('LAST_UPDATE_ID')||'-1');
-    if(u.update_id<=last)return ContentService.createTextOutput('ok');
+    if(u.update_id<=last)return HtmlService.createHtmlOutput('ok');
     const cb=u.callback_query; const msg=u.message;
     const chatId=cb&&cb.message&&cb.message.chat?String(cb.message.chat.id):(msg&&msg.chat?String(msg.chat.id):'');
     const sender=cb&&cb.from?String(cb.from.id):(msg&&msg.from?String(msg.from.id):'');
@@ -257,13 +257,13 @@ function doPost(e) {
       else if(msg&&msg.text)handleText_(msg);
     }
     props_().setProperty('LAST_UPDATE_ID',String(u.update_id));
-    return ContentService.createTextOutput('ok');
+    return HtmlService.createHtmlOutput('ok');
   } catch(err) {
     console.error('DriveTheory bot: '+err.message);
     throw err; // Telegram retries failed webhook requests
   } finally{lock.releaseLock();}
 }
-function doGet() {return ContentService.createTextOutput('DriveTheory B Coach online');}
+function doGet() {return HtmlService.createHtmlOutput('DriveTheory B Coach online');}
 
 /** Run once after adding BOT_TOKEN and CHAT_ID under Project Settings → Script properties. */
 function setupBackend(){
