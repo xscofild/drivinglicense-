@@ -1,8 +1,5 @@
 name: DriveTheory B — Telegram lesson
 on:
-  schedule:
-    # 08:00 in Chemnitz (CET) for the Nov–Dec study window
-    - cron: '0 7 * * *'
   workflow_dispatch:
 permissions:
   contents: read
