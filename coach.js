@@ -3,61 +3,13 @@
   "use strict";
   const KEY = "driveTheoryCoachV1";
   const DB_NAME = "driveTheoryCoachImages";
-  const START = new Date(2026, 9, 30);
-  const school = [
-    "Обучение по опасностям",
-    "Защита окружающей среды",
-    "Дорожные знаки",
-    "Обучение по опасностям",
-    "Защита окружающей среды",
-    "Профессиональная пригодность и квалификация водителей",
-    "Право преимущественного проезда, приоритет",
-    "Обучение по опасностям",
-    "Защита окружающей среды",
-    "Дорожные знаки",
-    "Поведение при дорожном движении",
-    "Предписания по эксплуатации транспортных средств",
-    "Техника",
-    "Защита окружающей среды",
-    "Обучение по опасностям",
-    "Дорожные знаки",
-    "Профессиональная пригодность и квалификация водителей",
-    "Право преимущественного проезда, приоритет",
-    "Поведение при дорожном движении",
-    "Защита окружающей среды"
-  ];
-  const paid = [
-    "Video questions — видеовопросы",
-    "Traffic sign — дорожные знаки",
-    "Video questions — видеовопросы",
-    "Right of way, priority — преимущество проезда",
-    "New Questions — новые вопросы",
-    "Traffic sign — дорожные знаки",
-    "Video questions — видеовопросы",
-    "Traffic sign — дорожные знаки",
-    "Number questions — числовые вопросы",
-    "Video questions — видеовопросы",
-    "Right of way, priority — преимущество проезда",
-    "Trailers — прицепы",
-    "Assistance systems — системы помощи водителю",
-    "New Questions — новые вопросы",
-    "Video questions — видеовопросы",
-    "Traffic sign — дорожные знаки",
-    "Rules of thumb — практические формулы",
-    "Right of way, priority — преимущество проезда",
-    "Trailers — прицепы",
-    "Number questions — числовые вопросы",
-    "Video questions — видеовопросы",
-    "Traffic sign — дорожные знаки",
-    "Video questions — видеовопросы",
-    "Right of way, priority — преимущество проезда",
-    "New Questions — новые вопросы",
-    "Trailers — прицепы",
-    "Video questions — видеовопросы",
-    "Number questions — числовые вопросы",
-    "Traffic sign — дорожные знаки",
-    "Video questions — видеовопросы"
-  ];
+  /* План общий для Smart Coach и ежедневных сообщений Telegram. */
+  const plan = window.DRIVE_PLAN;
+  const PLAN_DAYS = plan.days.length;
+  const START_ISO = plan.start;
+  const school = plan.days.map(d => d.school);
+  const paid = plan.days.map(d => d.paid);
+  const focus = plan.days.map(d => d.focus);
   const topics = {
     danger: "Опасные ситуации",
     environment: "Экология",
@@ -96,8 +48,8 @@
     const p=iso.split("-").map(Number);
     return localISO(new Date(p[0],p[1]-1,p[2]+days));
   };
-  const planDate = i => localISO(new Date(2026,9,30+i));
-  const dayIndex = () => Math.max(0,Math.min(29,Math.round((new Date(todayISO()+"T12:00:00")-new Date(2026,9,30,12))/86400000)));
+  const planDate = i => addDays(START_ISO,i);
+  const dayIndex = () => Math.max(0,Math.min(PLAN_DAYS-1,Math.round((new Date(todayISO()+"T12:00:00")-new Date(START_ISO+"T12:00:00"))/86400000)));
   let selectedDay = dayIndex();
   let reviewId = null;
   let revealed = false;
@@ -128,7 +80,7 @@
     catch(e){ alert("Не удалось сохранить данные. Освободи место в Safari и сделай резервную копию.");return false;}
   }
   function countDone(){
-    return Object.values(store.records).filter(r=>r.school?.done&&r.paid?.done).length;
+    return plan.days.filter(d=>store.records[d.date]?.school?.done&&store.records[d.date]?.paid?.done).length;
   }
   function dueMistakes(){
     return store.mistakes.filter(m=>(m.due||todayISO())<=todayISO());
@@ -146,10 +98,10 @@
   }
   function planPanel(){
     const i=dayIndex(),date=planDate(i),r=store.records[date]||{};
-    const isAfter=todayISO()>planDate(29);
-    return '<section class="panel coach-today"><div class="coach-row"><span class="label">📅 СЕГОДНЯ · ДЕНЬ '+(i+1)+'/30</span><strong class="coach-accent">'+countDone()+'/30 дней</strong></div>'+
-      '<h2>'+(isAfter?"План завершён — продолжай повторение":clean(dateLabel(date)))+'</h2>'+
-      '<div class="coach-task"><span>🔵 ШКОЛЬНАЯ · 30 ВОПРОСОВ</span><strong>'+clean(i<20?school[i]:"Пробный экзамен — смешанные вопросы")+'</strong><small>'+(r.school?.done?"✅ Выполнено":"Ещё не отмечено")+'</small></div>'+
+    const isAfter=todayISO()>planDate(PLAN_DAYS-1);
+    return '<section class="panel coach-today"><div class="coach-row"><span class="label">📅 СЕГОДНЯ · ДЕНЬ '+(i+1)+'/'+PLAN_DAYS+'</span><strong class="coach-accent">'+countDone()+'/'+PLAN_DAYS+' дней</strong></div>'+
+      '<h2>'+(isAfter?"План завершён — продолжай повторение":clean(dateLabel(date)))+'</h2><p class="muted">🎯 '+clean(focus[i])+'</p>'+
+      '<div class="coach-task"><span>🔵 ШКОЛЬНАЯ · 30 ВОПРОСОВ</span><strong>'+clean(school[i])+'</strong><small>'+(r.school?.done?"✅ Выполнено":"Ещё не отмечено")+'</small></div>'+
       '<div class="coach-task"><span>⚫ ПЛАТНАЯ · 30 ВОПРОСОВ</span><strong>'+clean(paid[i])+'</strong><small>'+(r.paid?.done?"✅ Выполнено":"Ещё не отмечено")+'</small></div>'+
       '<button class="primary" id="coach-open-plan">ОТКРЫТЬ МОЙ ПЛАН</button>'+
       '<button class="secondary coach-full" id="coach-open-mistakes">🧠 Повторить ошибки ('+dueMistakes().length+')</button></section>';
@@ -162,13 +114,13 @@
   }
   function renderPlan(app){
     const day=selectedDay,date=planDate(day),record=store.records[date]||{};
-    const isExam=day>=20;
-    const titles=[isExam?"Пробный экзамен из всех тем":school[day],paid[day]];
+    const isExam=day>=14;
+    const titles=[school[day],paid[day]];
     const paidUnique=paid[day].startsWith("Assistance systems")?14:paid[day].startsWith("Rules of thumb")?15:30;
     const schoolDone=record.school||{},paidDone=record.paid||{};
     const stats=topTopics().slice(0,3).map(([key,n])=>'<span class="coach-pill">'+clean(topics[key])+' · '+n+'</span>').join("");
-    app.innerHTML='<section class="panel coach-heading"><span class="label">ПЕРСОНАЛЬНАЯ ПОДГОТОВКА</span><h2>30 дней · 60 вопросов</h2><p class="muted">Одна тема = полный тест из 30 вопросов. С 19 ноября — пробные экзамены.</p><div class="coach-progress"><i style="width:'+(countDone()/30*100)+'%"></i></div><small class="muted">'+countDone()+' из 30 дней выполнено</small></section>'+
-      '<section class="panel"><div class="coach-row"><button class="secondary" id="coach-prev" '+(day===0?"disabled":"")+'>‹ Назад</button><div class="coach-center"><b>День '+(day+1)+' / 30</b><small>'+clean(dateLabel(date))+'</small></div><button class="secondary" id="coach-next" '+(day===29?"disabled":"")+'>Вперёд ›</button></div><input class="slider" type="range" min="0" max="29" value="'+day+'" id="coach-day-range" aria-label="Выбрать день"></section>'+
+    app.innerHTML='<section class="panel coach-heading"><span class="label">ПЕРСОНАЛЬНАЯ ПОДГОТОВКА</span><h2>'+PLAN_DAYS+' день · 60 вопросов/день</h2><p class="muted">23 ноября – 13 декабря. С 7 декабря — пробные экзамены. Старые ошибки сохранены.</p><div class="coach-progress"><i style="width:'+(countDone()/PLAN_DAYS*100)+'%"></i></div><small class="muted">'+countDone()+' из '+PLAN_DAYS+' дней выполнено</small></section>'+
+      '<section class="panel"><div class="coach-row"><button class="secondary" id="coach-prev" '+(day===0?"disabled":"")+'>‹ Назад</button><div class="coach-center"><b>День '+(day+1)+' / '+PLAN_DAYS+'</b><small>'+clean(dateLabel(date))+'</small></div><button class="secondary" id="coach-next" '+(day===PLAN_DAYS-1?"disabled":"")+'>Вперёд ›</button></div><input class="slider" type="range" min="0" max="'+(PLAN_DAYS-1)+'" value="'+day+'" id="coach-day-range" aria-label="Выбрать день"></section><section class="panel"><span class="label">ФОКУС ДНЯ</span><p>'+clean(focus[day])+'</p></section>'+
       ['school','paid'].map((kind,index)=>{
         const r=kind==="school"?schoolDone:paidDone;
         return '<section class="panel coach-record"><span class="label">'+(kind==="school"?"🔵 ШКОЛЬНАЯ ПРОГРАММА":"⚫ ПЛАТНАЯ ПРОГРАММА")+'</span>'+
@@ -184,7 +136,7 @@
       '<section class="panel"><div class="coach-row"><span class="label">РЕЗЕРВНАЯ КОПИЯ</span><span class="muted">Этот iPhone</span></div><p class="muted">Сохраняется локально. Для нового телефона или после очистки Safari экспортируй резервную копию.</p>'+
       '<button class="secondary coach-full" id="coach-export">Скачать копию с фотографиями</button><label class="coach-uploadline">Восстановить из файла<input type="file" id="coach-import" accept="application/json,.json"></label></section>';
     app.querySelector("#coach-prev").onclick=()=>{selectedDay=Math.max(0,selectedDay-1);renderPlan(app)};
-    app.querySelector("#coach-next").onclick=()=>{selectedDay=Math.min(29,selectedDay+1);renderPlan(app)};
+    app.querySelector("#coach-next").onclick=()=>{selectedDay=Math.min(PLAN_DAYS-1,selectedDay+1);renderPlan(app)};
     app.querySelector("#coach-day-range").oninput=e=>{selectedDay=Number(e.target.value);renderPlan(app)};
     app.querySelector("#coach-save-day").onclick=()=>{
       const rec={};
