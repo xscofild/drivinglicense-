@@ -1,0 +1,23 @@
+name: DriveTheory B — Telegram lesson
+on:
+  schedule:
+    # 08:00 in Chemnitz (CET) for the Nov–Dec study window
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  telegram-lesson:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Send today's study plan
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TEST_MODE: ${{ github.event_name == 'workflow_dispatch' && '1' || '0' }}
+        run: node telegram_daily.js
