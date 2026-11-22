@@ -216,19 +216,30 @@ function sendErrors_() {
     '\n  Повтор: '+esc_(m.due)+(m.question?'\n  '+esc_(m.question.slice(0,100)):'')).join('\n\n')+
     '\n\nНа повтор сейчас: <b>'+due_().length+'</b>',menu_());
 }
+/* Active recall: don't reveal the correct answer until the learner asks. */
 function sendReview_(){
   const items=due_();
-  if(!items.length){send_('🧠 На сегодня ошибок для повторения нет. Молодец! ✅',menu_());return;}
+  if(!items.length){send_('🧠 На сегодня ошибок для повторения нет. ✅',menu_());return;}
   const m=items[0];
-  const cap='🧠 <b>Повторение ошибки</b>\nТема: '+esc_(CFG.TOPICS[m.topic]||CFG.TOPICS.other)+'\n'+
-    (m.question?'Твоя заметка: '+esc_(m.question.slice(0,650))+'\n':'')+
-    (m.answer?'Объяснение: '+esc_(m.answer.slice(0,600))+'\n':'')+
-    '\nПосмотри на скриншот. Ты теперь знаешь правильный ответ?\nОсталось: '+items.length;
-  const safeCaption=cap.slice(0,980);
-  const buttons=[[btn_('✅ Знаю','review|'+m.id+'|yes'),btn_('❌ Не знаю','review|'+m.id+'|no')]];
-  if(m.photo) {
-    api_('sendPhoto',{chat_id:p_('CHAT_ID'),photo:m.photo,caption:safeCaption,parse_mode:'HTML',reply_markup:{inline_keyboard:buttons}});
-  } else send_(cap,buttons);
+  const cap='🧠 <b>Повторение ошибки</b>\n'+
+    (m.code?'🔢 Вопрос: <code>'+esc_(m.code)+'</code>\n':'')+
+    '📚 Тема: '+esc_(CFG.TOPICS[m.topic]||CFG.TOPICS.other)+'\n'+
+    (m.question?'\n'+esc_(m.question.slice(0,690))+'\n':'')+
+    '\nСначала вспомни ответ самостоятельно. Затем открой проверку.\nОсталось сегодня: '+items.length;
+  const buttons=[[btn_('👀 Показать ответ','reveal|'+m.id)]];
+  if(m.photo){
+    api_('sendPhoto',{chat_id:p_('CHAT_ID'),photo:m.photo,caption:cap.slice(0,980),
+      parse_mode:'HTML',reply_markup:{inline_keyboard:buttons}});
+  }else send_(cap,buttons);
+}
+function showReviewAnswer_(id){
+  const m=mistakes_().find(x=>x.id===id);
+  if(!m){send_('Ошибка не найдена.');return;}
+  const cap='✅ <b>Правильный ответ</b>\n'+
+    (m.code?'Вопрос <code>'+esc_(m.code)+'</code>\n':'')+
+    (m.answer?esc_(m.answer.slice(0,1200)):'Проверь ответ в учебном приложении.')+
+    '\n\nОтметь, смог ли ты ответить без подсказки:';
+  send_(cap,[[btn_('✅ Знаю','review|'+id+'|yes'),btn_('❌ Не знаю','review|'+id+'|no')]]);
 }
 function saveReview_(id,known){
   const m=mistakes_().find(x=>x.id===id);
@@ -248,7 +259,8 @@ function help_(){send_('🚗 <b>Команды DriveTheory B Coach</b>\n'+
   '/today — задания на сегодня\n/progress — статистика\n/review — повторить старые ошибки\n/errors — журнал ошибок\n/plan — ближайшие дни\n/cancel — отменить ввод результата\n\n'+
   '📸 Чтобы сохранить ошибку, отправь скриншот, затем выбери тему.\n'+
   '✅ Для результата нажми кнопку под ежедневным заданием и введи: <code>27 5</code>.\n'+
-  '⚠️ Бот не читает результаты экзаменационных приложений автоматически и не распознаёт правильные ответы на фото.',menu_());}
+  '📚 Ошибки, разобранные в ChatGPT, уже в Google Sheets. В /review сначала отвечай сам, затем жми «Показать ответ».\n'+
+  '⚠️ Скриншоты из ChatGPT пока не прикреплены к Telegram; для них показывается текст. Распознавание фото в Telegram только предлагает тему по коду.',menu_());}
 function handleText_(msg) {
   const txt=(msg.text||'').trim();
   if(txt==='/start'||txt==='/help'){clearPending_();help_();return;}
@@ -276,6 +288,7 @@ function handleCallback_(cb) {
     case 'progress':sendProgress_();break;
     case 'plan':sendPlan_();break;
     case 'review':if(x.length===3)saveReview_(x[1],x[2]==='yes');else sendReview_();break;
+    case 'reveal':if(x.length===2)showReviewAnswer_(x[1]);break;
     case 'errors':sendErrors_();break;
     case 'help':help_();break;
     case 'result':if(x.length===3&&['school','special'].indexOf(x[1])>=0)askResult_(x[1],x[2]);break;
